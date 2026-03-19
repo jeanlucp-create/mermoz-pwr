@@ -1,0 +1,448 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no" />
+  <title>P+R Mermoz-Pinel</title>
+  <meta name="description" content="Disponibilité en temps réel du Parc Relais TCL Mermoz-Pinel" />
+
+  <!-- PWA -->
+  <link rel="manifest" href="manifest.json" />
+  <meta name="theme-color" content="#0f172a" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+  <meta name="apple-mobile-web-app-title" content="Mermoz P+R" />
+  <link rel="apple-touch-icon" href="icons/icon-192.png" />
+
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Syne:wght@700;800&display=swap');
+
+    :root {
+      --bg: #0a0f1e;
+      --surface: #111827;
+      --border: #1e293b;
+      --accent: #38bdf8;
+      --accent2: #818cf8;
+      --green: #4ade80;
+      --orange: #fb923c;
+      --red: #f87171;
+      --gray: #475569;
+      --text: #f1f5f9;
+      --muted: #64748b;
+    }
+
+    * { margin: 0; padding: 0; box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+
+    body {
+      background: var(--bg);
+      color: var(--text);
+      font-family: 'DM Mono', monospace;
+      min-height: 100dvh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      padding: 24px 20px;
+      overflow: hidden;
+      position: relative;
+    }
+
+    /* Background grid */
+    body::before {
+      content: '';
+      position: fixed;
+      inset: 0;
+      background-image:
+        linear-gradient(var(--border) 1px, transparent 1px),
+        linear-gradient(90deg, var(--border) 1px, transparent 1px);
+      background-size: 40px 40px;
+      opacity: 0.4;
+      pointer-events: none;
+    }
+
+    /* Glow blob */
+    body::after {
+      content: '';
+      position: fixed;
+      width: 400px;
+      height: 400px;
+      background: radial-gradient(circle, rgba(56,189,248,0.08) 0%, transparent 70%);
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      pointer-events: none;
+    }
+
+    .card {
+      width: 100%;
+      max-width: 360px;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 24px;
+      padding: 32px 28px;
+      position: relative;
+      z-index: 1;
+      animation: fadeUp 0.5s ease both;
+    }
+
+    @keyframes fadeUp {
+      from { opacity: 0; transform: translateY(20px); }
+      to   { opacity: 1; transform: translateY(0); }
+    }
+
+    .badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      background: rgba(56,189,248,0.1);
+      border: 1px solid rgba(56,189,248,0.25);
+      color: var(--accent);
+      font-size: 10px;
+      letter-spacing: 0.15em;
+      text-transform: uppercase;
+      padding: 5px 12px;
+      border-radius: 100px;
+      margin-bottom: 20px;
+    }
+
+    .badge::before {
+      content: '';
+      width: 6px;
+      height: 6px;
+      background: var(--accent);
+      border-radius: 50%;
+      animation: pulse 2s infinite;
+    }
+
+    @keyframes pulse {
+      0%, 100% { opacity: 1; transform: scale(1); }
+      50% { opacity: 0.4; transform: scale(0.8); }
+    }
+
+    .station-name {
+      font-family: 'Syne', sans-serif;
+      font-size: 26px;
+      font-weight: 800;
+      line-height: 1.1;
+      letter-spacing: -0.02em;
+      margin-bottom: 4px;
+    }
+
+    .station-sub {
+      color: var(--muted);
+      font-size: 12px;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+      margin-bottom: 32px;
+    }
+
+    /* Main number */
+    .dispo-wrap {
+      display: flex;
+      align-items: baseline;
+      gap: 10px;
+      margin-bottom: 8px;
+    }
+
+    .dispo-number {
+      font-family: 'Syne', sans-serif;
+      font-size: 72px;
+      font-weight: 800;
+      line-height: 1;
+      letter-spacing: -0.04em;
+      transition: color 0.5s;
+    }
+
+    .dispo-label {
+      color: var(--muted);
+      font-size: 12px;
+      line-height: 1.4;
+    }
+
+    /* Progress bar */
+    .progress-wrap {
+      margin: 20px 0;
+    }
+
+    .progress-meta {
+      display: flex;
+      justify-content: space-between;
+      font-size: 10px;
+      color: var(--muted);
+      letter-spacing: 0.08em;
+      margin-bottom: 8px;
+    }
+
+    .progress-track {
+      height: 4px;
+      background: var(--border);
+      border-radius: 99px;
+      overflow: hidden;
+    }
+
+    .progress-fill {
+      height: 100%;
+      border-radius: 99px;
+      transition: width 0.8s cubic-bezier(0.16, 1, 0.3, 1), background 0.5s;
+    }
+
+    /* Status */
+    .status-pill {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 11px;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+      padding: 6px 14px;
+      border-radius: 100px;
+      border: 1px solid currentColor;
+      margin-bottom: 28px;
+      transition: color 0.5s, border-color 0.5s;
+    }
+
+    /* Info grid */
+    .info-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 10px;
+      margin-bottom: 28px;
+    }
+
+    .info-cell {
+      background: var(--bg);
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      padding: 14px;
+    }
+
+    .info-cell-label {
+      font-size: 9px;
+      color: var(--muted);
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+      margin-bottom: 4px;
+    }
+
+    .info-cell-value {
+      font-size: 14px;
+      font-weight: 500;
+      color: var(--text);
+    }
+
+    .horaires-cell {
+      grid-column: 1 / -1;
+      background: var(--bg);
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      padding: 14px;
+    }
+
+    .horaires-text {
+      font-size: 11px;
+      color: var(--muted);
+      line-height: 1.6;
+    }
+
+    /* Footer */
+    .footer {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+
+    .update-time {
+      font-size: 10px;
+      color: var(--muted);
+    }
+
+    .refresh-btn {
+      background: rgba(56,189,248,0.08);
+      border: 1px solid rgba(56,189,248,0.2);
+      color: var(--accent);
+      font-family: 'DM Mono', monospace;
+      font-size: 11px;
+      padding: 8px 16px;
+      border-radius: 100px;
+      cursor: pointer;
+      letter-spacing: 0.05em;
+      transition: background 0.2s, transform 0.1s;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .refresh-btn:active { transform: scale(0.96); }
+    .refresh-btn:hover { background: rgba(56,189,248,0.15); }
+    .refresh-btn.spinning svg { animation: spin 1s linear infinite; }
+
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    /* Loading skeleton */
+    .skeleton {
+      background: linear-gradient(90deg, var(--border) 25%, #1e2d40 50%, var(--border) 75%);
+      background-size: 200% 100%;
+      animation: shimmer 1.5s infinite;
+      border-radius: 8px;
+    }
+
+    @keyframes shimmer { to { background-position: -200% 0; } }
+
+    /* Error */
+    .error-msg {
+      color: var(--red);
+      font-size: 12px;
+      text-align: center;
+      padding: 12px;
+      background: rgba(248,113,113,0.08);
+      border: 1px solid rgba(248,113,113,0.2);
+      border-radius: 12px;
+      margin-bottom: 20px;
+    }
+
+    /* Color states */
+    .c-green { color: var(--green); }
+    .c-orange { color: var(--orange); }
+    .c-red { color: var(--red); }
+    .c-gray { color: var(--gray); }
+
+    .b-green { background: var(--green); }
+    .b-orange { background: var(--orange); }
+    .b-red { background: var(--red); }
+    .b-gray { background: var(--gray); }
+  </style>
+</head>
+<body>
+
+<div class="card">
+  <div class="badge">Temps réel · TCL</div>
+
+  <div class="station-name">Mermoz<br>Pinel</div>
+  <div class="station-sub">Parc Relais · Métro D · Bron</div>
+
+  <div id="error-zone"></div>
+
+  <div class="dispo-wrap">
+    <div class="dispo-number c-green" id="dispo-num">—</div>
+    <div class="dispo-label">places<br>libres</div>
+  </div>
+
+  <div class="progress-wrap">
+    <div class="progress-meta">
+      <span>OCCUPATION</span>
+      <span id="pct-label">—</span>
+    </div>
+    <div class="progress-track">
+      <div class="progress-fill b-green" id="progress-fill" style="width:0%"></div>
+    </div>
+  </div>
+
+  <div class="status-pill c-green" id="status-pill">Chargement…</div>
+
+  <div class="info-grid">
+    <div class="info-cell">
+      <div class="info-cell-label">Capacité totale</div>
+      <div class="info-cell-value" id="cap-total">—</div>
+    </div>
+    <div class="info-cell">
+      <div class="info-cell-label">Places PMR</div>
+      <div class="info-cell-value" id="cap-pmr">—</div>
+    </div>
+    <div class="horaires-cell">
+      <div class="info-cell-label">Horaires</div>
+      <div class="horaires-text" id="horaires">Chargement…</div>
+    </div>
+  </div>
+
+  <div class="footer">
+    <div class="update-time" id="update-time">—</div>
+    <button class="refresh-btn" id="refresh-btn" onclick="fetchData()">
+      <svg id="refresh-icon" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M21 2v6h-6"/><path d="M3 12a9 9 0 0 1 15-6.7L21 8"/><path d="M3 22v-6h6"/><path d="M21 12a9 9 0 0 1-15 6.7L3 16"/>
+      </svg>
+      Actualiser
+    </button>
+  </div>
+</div>
+
+<script>
+const API = "https://data.grandlyon.com/fr/datapusher/ws/rdata/tcl_sytral.tclparcrelaistr/all.json?maxfeatures=-1";
+
+function getStatus(dispo, capacite) {
+  if (dispo === null || dispo === -1 || dispo === undefined)
+    return { label: "Non disponible", cls: "gray", pct: 0 };
+  const pct = dispo / capacite;
+  if (dispo === 0)       return { label: "Complet",       cls: "red",    pct: 0 };
+  if (pct <= 0.2)        return { label: "Presque plein", cls: "red",    pct: Math.round(pct * 100) };
+  if (pct <= 0.5)        return { label: "Limité",        cls: "orange", pct: Math.round(pct * 100) };
+                         return { label: "Disponible",    cls: "green",  pct: Math.round(pct * 100) };
+}
+
+function setColor(cls) {
+  const els = document.querySelectorAll('[data-color]');
+  els.forEach(el => {
+    const type = el.dataset.color;
+    el.className = el.className.replace(/\bc-(green|orange|red|gray)\b/, `c-${cls}`);
+    el.className = el.className.replace(/\bb-(green|orange|red|gray)\b/, `b-${cls}`);
+  });
+  document.getElementById('dispo-num').className = `dispo-number c-${cls}`;
+  document.getElementById('progress-fill').className = `progress-fill b-${cls}`;
+  document.getElementById('status-pill').className = `status-pill c-${cls}`;
+}
+
+async function fetchData() {
+  const btn = document.getElementById('refresh-btn');
+  const icon = document.getElementById('refresh-icon');
+  btn.disabled = true;
+  btn.classList.add('spinning');
+
+  document.getElementById('error-zone').innerHTML = '';
+
+  try {
+    const res = await fetch(API);
+    if (!res.ok) throw new Error(`Erreur HTTP ${res.status}`);
+    const data = await res.json();
+    const p = data.values.find(x => x.id === "MERP");
+    if (!p) throw new Error("Parking introuvable dans l'API");
+
+    const s = getStatus(p.nb_tot_place_dispo, p.capacite);
+
+    // Update numbers
+    const numEl = document.getElementById('dispo-num');
+    numEl.textContent = (p.nb_tot_place_dispo === null || p.nb_tot_place_dispo === -1)
+      ? "—" : p.nb_tot_place_dispo;
+
+    document.getElementById('cap-total').textContent = p.capacite + ' places';
+    document.getElementById('cap-pmr').textContent = p.place_handi + ' places';
+    document.getElementById('horaires').textContent = p.horaires || '—';
+    document.getElementById('pct-label').textContent = s.pct ? `${100 - s.pct}% occupé` : '—';
+    document.getElementById('progress-fill').style.width = s.pct + '%';
+    document.getElementById('status-pill').textContent = s.label;
+    document.getElementById('update-time').textContent =
+      'màj ' + new Date().toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+
+    setColor(s.cls);
+
+  } catch (e) {
+    document.getElementById('error-zone').innerHTML =
+      `<div class="error-msg">⚠️ ${e.message}</div>`;
+    document.getElementById('dispo-num').textContent = '—';
+    document.getElementById('update-time').textContent = 'Échec de mise à jour';
+    setColor('gray');
+  } finally {
+    btn.disabled = false;
+    btn.classList.remove('spinning');
+  }
+}
+
+// Auto-refresh toutes les 2 minutes
+fetchData();
+setInterval(fetchData, 120000);
+
+// Service Worker registration
+if ('serviceWorker' in navigator) {
+  navigator.serviceWorker.register('sw.js').catch(() => {});
+}
+</script>
+</body>
+</html>
