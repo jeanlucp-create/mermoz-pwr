@@ -399,7 +399,10 @@ async function fetchData() {
   document.getElementById('error-zone').innerHTML = '';
 
   try {
-    const res = await fetch(API);
+    const credentials = btoa('jean.luc.perrotto@gmail.com:ParcRelais&Mermoz@69500');
+    const res = await fetch(API, {
+      headers: { 'Authorization': 'Basic ' + credentials }
+    });
     if (!res.ok) throw new Error(`Erreur HTTP ${res.status}`);
     const data = await res.json();
     const p = data.values.find(x => x.id === "MERP");
