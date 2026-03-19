@@ -366,7 +366,8 @@
 </div>
 
 <script>
-const API = "https://data.grandlyon.com/fr/datapusher/ws/rdata/tcl_sytral.tclparcrelaistr/all.json?maxfeatures=-1";
+// ← Remplacez cette URL par l'URL de votre Cloudflare Worker après déploiement
+const API = "https://mermoz-proxy.jean-luc-perrotto.workers.dev";
 
 function getStatus(dispo, capacite) {
   if (dispo === null || dispo === -1 || dispo === undefined)
@@ -399,14 +400,10 @@ async function fetchData() {
   document.getElementById('error-zone').innerHTML = '';
 
   try {
-    const credentials = btoa('jean.luc.perrotto@gmail.com:ParcRelais&Mermoz@69500');
-    const res = await fetch(API, {
-      headers: { 'Authorization': 'Basic ' + credentials }
-    });
+    const res = await fetch(API);
     if (!res.ok) throw new Error(`Erreur HTTP ${res.status}`);
-    const data = await res.json();
-    const p = data.values.find(x => x.id === "MERP");
-    if (!p) throw new Error("Parking introuvable dans l'API");
+    const p = await res.json();
+    if (!p || p.error) throw new Error(p?.error || "Données indisponibles");
 
     const s = getStatus(p.nb_tot_place_dispo, p.capacite);
 
